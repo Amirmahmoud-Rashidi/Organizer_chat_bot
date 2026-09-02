@@ -31,8 +31,31 @@ MESSAGES_FA: dict[str, str] = {
     "menu.recent_prompts": "🕘 پرامپت‌های اخیر",
     "menu.set_destination": "📨 مقصد فوروارد",
     "menu.run": "▶️ اجرا",
+    "menu.delivery_mode": "📤 حالت ارسال",
+    "menu.pace": "⏱ سرعت خواندن",
     "menu.language": "🌐 تغییر زبان",
     "menu.cancel": "❌ لغو",
+
+    # --- Read pace ---
+    "pace.title": "⏱ سرعت خواندن پیام‌ها",
+    "pace.choose": "یک preset انتخاب کن:",
+    "pace.current": "سرعت فعلی: **{label}**",
+    "pace.custom_label": "✏️ سفارشی (دستی)",
+    "pace.custom_desc": "مقادیر دلخواه: `10,1.0,50,5.0` (size,delay,long_size,long_delay)",
+    "pace.custom_prompt": "۴ عدد بفرست با کاما: `fast_size,fast_delay,long_size,long_delay`\nمثال: `5,2.0,30,8.0`",
+    "pace.custom_invalid": "⚠️ فرمت نامعتبر. مثال: `10,1.0,50,5.0`",
+    "pace.custom_saved": "✅ تنظیم سفارشی ذخیره شد: size={0} delay={1}s long_size={2} long_delay={3}s",
+
+    # --- Delivery mode ---
+    "delivery.title": "📤 حالت ارسال",
+    "delivery.choose": "یکی از حالت‌های زیر رو انتخاب کن:",
+    "mode.forward": "↪️ فوروارد پیام‌ها (پیش‌فرض)",
+    "mode.forward_desc": "پیام‌های منطبق رو مستقیم به چت مقصد فوروارد می‌کنه (سریع ولی پرریسک).",
+    "mode.digest": "📋 ارسال خلاصه با لینک (امن)",
+    "mode.digest_desc": "یک پیام خلاصه شامل لینک + متن کوتاه هر پیام منطبق می‌فرسته (بدون ریسک ban).",
+    "mode.current": "حالت فعلی: **{mode}**",
+    "mode.forward_fa": "فوروارد",
+    "mode.digest_fa": "خلاصه",
 
     # --- Language ---
     "lang.choose": "🌐 زبان رو انتخاب کن:",
@@ -65,12 +88,14 @@ MESSAGES_FA: dict[str, str] = {
 
     # --- Run ---
     "run.starting": "⏳ در حال تحلیل…",
+    "run.starting_slow": "⏳ در حال خواندن آرام پیام‌ها و تحلیل…",
     "run.no_chat": "⚠️ اول یک چت انتخاب کن.",
     "run.no_window": "⚠️ اول پنجره زمانی تنظیم کن.",
     "run.no_prompt": "⚠️ اول پرامپت تنظیم کن.",
     "run.no_destination": "⚠️ اول مقصد فوروارد تنظیم کن.",
     "run.done_zero": "ℹ️ هیچ پیام منطبقی پیدا نشد.",
-    "run.done_n": "✅ {n} پیام به مقصد فوروارد شد.",
+    "run.done_n_forward": "✅ {n} پیام به مقصد فوروارد شد.",
+    "run.done_n_digest": "✅ خلاصه {n} پیام منطبق به مقصد ارسال شد.",
     "run.error": "❌ خطا در اجرا: {err}",
 
     # --- Unauthorized ---
@@ -97,8 +122,31 @@ MESSAGES_EN: dict[str, str] = {
     "menu.recent_prompts": "🕘 Recent prompts",
     "menu.set_destination": "📨 Forward destination",
     "menu.run": "▶️ Run",
+    "menu.delivery_mode": "📤 Delivery mode",
+    "menu.pace": "⏱ Read pace",
     "menu.language": "🌐 Change language",
     "menu.cancel": "❌ Cancel",
+
+    # --- Read pace ---
+    "pace.title": "⏱ Read pace",
+    "pace.choose": "Pick a preset:",
+    "pace.current": "Current pace: **{label}**",
+    "pace.custom_label": "✏️ Custom",
+    "pace.custom_desc": "Custom values: `10,1.0,50,5.0` (size,delay,long_size,long_delay)",
+    "pace.custom_prompt": "Send 4 numbers separated by commas: `fast_size,fast_delay,long_size,long_delay`\nExample: `5,2.0,30,8.0`",
+    "pace.custom_invalid": "⚠️ Invalid format. Example: `10,1.0,50,5.0`",
+    "pace.custom_saved": "✅ Custom pace saved: size={0} delay={1}s long_size={2} long_delay={3}s",
+
+    # --- Delivery mode ---
+    "delivery.title": "📤 Delivery mode",
+    "delivery.choose": "Pick a delivery mode:",
+    "mode.forward": "↪️ Forward messages (default)",
+    "mode.forward_desc": "Directly forwards matching messages to the destination chat (fast but higher risk).",
+    "mode.digest": "📋 Send digest with links (safe)",
+    "mode.digest_desc": "Sends one summary message with links + excerpts (no ban risk).",
+    "mode.current": "Current mode: **{mode}**",
+    "mode.forward_fa": "Forward",
+    "mode.digest_fa": "Digest",
 
     "lang.choose": "🌐 Choose a language:",
     "lang.changed_fa": "✅ زبان به فارسی تغییر کرد.",
@@ -125,12 +173,14 @@ MESSAGES_EN: dict[str, str] = {
     "dest.invalid": "⚠️ Invalid destination.",
 
     "run.starting": "⏳ Analyzing…",
+    "run.starting_slow": "⏳ Slow-reading messages and analyzing…",
     "run.no_chat": "⚠️ Select a chat first.",
     "run.no_window": "⚠️ Set a time window first.",
     "run.no_prompt": "⚠️ Set a prompt first.",
     "run.no_destination": "⚠️ Set a forward destination first.",
     "run.done_zero": "ℹ️ No matching messages found.",
-    "run.done_n": "✅ Forwarded {n} message(s) to destination.",
+    "run.done_n_forward": "✅ Forwarded {n} message(s) to destination.",
+    "run.done_n_digest": "✅ Sent digest with {n} match(es) to destination.",
     "run.error": "❌ Error during run: {err}",
 
     "auth.denied": "⛔ You are not authorized to use this bot.",

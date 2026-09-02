@@ -150,6 +150,21 @@ class ReadOnlyClient:
         # `me` itself is a valid peer that points to Saved Messages.
         return await self.__raw.send_message(me, message)
 
+    async def send_to_destination(self, destination: Any, message: str) -> Message:
+        """
+        Send a digest/report message to the configured destination chat.
+
+        Unlike `send_message` (which is NOT exposed at all), this method is
+        narrowly scoped: it is the ONLY way for application code to send a
+        message, and the destination is explicitly passed by the caller
+        (i.e. the bot interface that the authorized user selected).
+
+        Use this for the "summary instead of forward" mode.
+        """
+        if not destination:
+            raise ValueError("destination is required for send_to_destination")
+        return await self.__raw.send_message(destination, message)
+
     async def delete_in_saved_messages(self, message_ids: int | list[int]) -> bool:
         """Delete messages ONLY in Saved Messages. Hard-coded safety check."""
         me = await self.__raw.get_me()

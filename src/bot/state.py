@@ -10,9 +10,12 @@ swap the storage for `context.user_data` from python-telegram-bot.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from src.bot.i18n import Lang
+
+DeliveryMode = Literal["forward", "digest"]
+PacePresetName = Literal["safe", "normal", "fast", "custom"]
 
 
 @dataclass(slots=True)
@@ -32,8 +35,21 @@ class UserState:
     prompt: str | None = None
     destination: str | None = None
 
+    # delivery mode (forward | digest)
+    delivery_mode: DeliveryMode = "digest"  # safe default
+
+    # read pacing — adjustable in the bot UI
+    pace_preset: PacePresetName = "normal"  # default = balanced
+
+    # custom pace values (only used when pace_preset == "custom")
+    # If None, fall back to the .env defaults.
+    custom_fast_batch_size: int | None = None
+    custom_fast_batch_delay: float | None = None
+    custom_batch_size: int | None = None
+    custom_long_pause_delay: float | None = None
+
     # misc flags
-    waiting_for: str | None = None  # e.g. "prompt", "destination", "window_custom"
+    waiting_for: str | None = None  # e.g. "prompt", "destination", "window_custom", "pace_custom"
 
     extra: dict[str, Any] = field(default_factory=dict)
 

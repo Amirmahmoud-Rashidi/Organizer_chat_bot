@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 class AIAnalyzer(Protocol):
     async def analyze(
         self, messages: list[FetchedMessage], prompt: str
-    ) -> list[int]: ...
+    ) -> dict[int, str]: ...
 
 
 def build_analyzer() -> Analyzer:

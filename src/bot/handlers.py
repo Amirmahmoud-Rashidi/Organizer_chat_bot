@@ -22,8 +22,7 @@ from src.bot.i18n import Lang, format_window, parse_window, t
 from src.bot.prompt_history import load_recent_prompts, save_prompt
 from src.bot.state import store
 from src.config import get_settings
-from src.userbot.forwarder import forward_messages as do_forward
-from src.userbot.reader import fetch_messages, list_dialogs
+from src.userbot.reader import FetchedMessage, fetch_messages, list_dialogs
 from src.userbot.wrapper import ReadOnlyClient
 
 log = logging.getLogger(__name__)
@@ -43,11 +42,43 @@ def main_menu_kb(lang: Lang) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(t("menu.recent_prompts", lang), callback_data="menu:recent"),
             ],
             [InlineKeyboardButton(t("menu.set_destination", lang), callback_data="menu:dest")],
+            [InlineKeyboardButton(t("menu.delivery_mode", lang), callback_data="menu:mode")],
+            [InlineKeyboardButton(t("menu.pace", lang), callback_data="menu:pace")],
             [InlineKeyboardButton(t("menu.run", lang), callback_data="menu:run")],
             [
                 InlineKeyboardButton(t("menu.language", lang), callback_data="menu:lang"),
                 InlineKeyboardButton(t("menu.cancel", lang), callback_data="menu:cancel"),
             ],
+        ]
+    )
+
+
+def pace_kb(lang: Lang, current: str) -> InlineKeyboardMarkup:
+    """Inline keyboard for picking a read-pace preset (plus custom)."""
+    from src.bot.presets import all_presets, get_preset
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in all_presets():
+        prefix = "✓ " if current == p.name_preset else ""
+        label = prefix + (p.label_fa if lang == "fa" else p.label_en)
+        rows.append([InlineKeyboardButton(label, callback_data=f"pace:set:{p.name_preset}")])
+
+    # Custom — current row shows the active custom values if applicable.
+    custom_label = ("✓ " if current == "custom" else "") + t("pace.custom_label", lang)
+    rows.append([InlineKeyboardButton(custom_label, callback_data="pace:custom")])
+    rows.append([InlineKeyboardButton(t("menu.cancel", lang), callback_data="menu:cancel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def delivery_mode_kb(lang: Lang, current: str) -> InlineKeyboardMarkup:
+    """Inline keyboard for picking forward vs digest mode."""
+    label_forward = ("✓ " if current == "forward" else "") + t("mode.forward", lang)
+    label_digest = ("✓ " if current == "digest" else "") + t("mode.digest", lang)
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton(label_forward, callback_data="mode:set:forward")],
+            [InlineKeyboardButton(label_digest, callback_data="mode:set:digest")],
+            [InlineKeyboardButton(t("menu.cancel", lang), callback_data="menu:cancel")],
         ]
     )
 
@@ -228,6 +259,68 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
 
+    if data == "menu:mode":
+        await q.edit_message_text(
+            f"{t('delivery.title', lang)}\n\n"
+            f"_{t('mode.forward_desc', lang)}_\n\n"
+            f"_{t('mode.digest_desc', lang)}_\n\n"
+            f"{t('mode.current', lang, mode=t(f'mode.{state.delivery_mode}_fa', lang))}",
+            reply_markup=delivery_mode_kb(lang, state.delivery_mode),
+        )
+        return
+
+    if data == "menu:pace":
+        from src.bot.presets import get_preset
+
+        current = get_preset(state.pace_preset)
+        current_label = (
+            current.label_fa if state.pace_preset != "custom" else t("pace.custom_label", lang)
+        )
+        if lang == "fa":
+            current_desc = current.desc_fa if state.pace_preset != "custom" else t("pace.custom_desc", lang)
+        else:
+            current_desc = current.desc_en if state.pace_preset != "custom" else t("pace.custom_desc", lang)
+        await q.edit_message_text(
+            f"{t('pace.title', lang)}\n\n"
+            f"_{current_desc}_\n\n"
+            f"{t('pace.current', lang, label=current_label)}",
+            reply_markup=pace_kb(lang, state.pace_preset),
+        )
+        return
+
+    if data.startswith("pace:set:"):
+        from src.bot.presets import get_preset
+
+        name = data.split(":", 2)[2]
+        if name in ("safe", "normal", "fast"):
+            state.pace_preset = name  # type: ignore[assignment]
+            cfg = get_preset(name)
+            label = cfg.label_fa if lang == "fa" else cfg.label_en
+            await q.edit_message_text(
+                t("pace.current", lang, label=label),
+                reply_markup=main_menu_kb(lang),
+            )
+        return
+
+    if data == "pace:custom":
+        state.waiting_for = "pace_custom"
+        state.pace_preset = "custom"
+        await q.edit_message_text(
+            t("pace.custom_prompt", lang),
+            reply_markup=main_menu_kb(lang),
+        )
+        return
+
+    if data.startswith("mode:set:"):
+        new_mode = data.split(":", 2)[2]
+        if new_mode in ("forward", "digest"):
+            state.delivery_mode = new_mode  # type: ignore[assignment]
+            await q.edit_message_text(
+                t("mode.current", lang, mode=t(f"mode.{new_mode}_fa", lang)),
+                reply_markup=main_menu_kb(lang),
+            )
+        return
+
     if data == "menu:lang":
         await q.edit_message_text(t("lang.choose", lang), reply_markup=lang_kb())
         return
@@ -335,7 +428,37 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             reply_markup=main_menu_kb(lang),
         )
         return
-
+    if state.waiting_for == "pace_custom":
+        try:
+            parts = [p.strip() for p in text.split(",")]
+            if len(parts) != 4:
+                raise ValueError
+            fast_size = int(parts[0])
+            fast_delay = float(parts[1])
+            long_size = int(parts[2])
+            long_delay = float(parts[3])
+            if fast_size < 1 or long_size < 1 or fast_delay < 0 or long_delay < 0:
+                raise ValueError
+        except (ValueError, IndexError):
+            await update.effective_message.reply_text(  # type: ignore[union-attr]
+                t("pace.custom_invalid", lang),
+            )
+            return
+        state.custom_fast_batch_size = fast_size
+        state.custom_fast_batch_delay = fast_delay
+        state.custom_batch_size = long_size
+        state.custom_long_pause_delay = long_delay
+        state.pace_preset = "custom"
+        state.waiting_for = None
+        await update.effective_message.reply_text(  # type: ignore[union-attr]
+            t(
+                "pace.custom_saved",
+                lang,
+                fast_size, fast_delay, long_size, long_delay,
+            ),
+            reply_markup=main_menu_kb(lang),
+        )
+        return
     # Default \u2014 re-show menu.
     await update.effective_message.reply_text(  # type: ignore[union-attr]
         t("menu.title", lang),
@@ -365,19 +488,48 @@ async def _run_pipeline(
         await q.edit_message_text(t("run.no_destination", lang), reply_markup=main_menu_kb(lang))
         return
 
-    await q.edit_message_text(t("run.starting", lang))
+    starting_msg = (
+        t("run.starting_slow", lang)
+        if state.delivery_mode == "digest"
+        else t("run.starting", lang)
+    )
+    await q.edit_message_text(starting_msg)
 
     client: ReadOnlyClient = context.bot_data["userbot"]
     analyzer: AIAnalyzer = context.bot_data["analyzer"]
     settings = get_settings()
 
     since = datetime.now(timezone.utc) - timedelta(minutes=state.window_minutes)
+
+    # Resolve pacing: preset from UI > custom values > .env defaults
+    from src.bot.presets import get_preset
+
+    if state.pace_preset == "custom":
+        slow_read = settings.slow_read_enabled
+        fast_batch_size = state.custom_fast_batch_size or settings.fast_batch_size
+        fast_batch_delay = state.custom_fast_batch_delay or settings.fast_batch_delay
+        batch_size = state.custom_batch_size or settings.batch_size
+        long_pause_delay = state.custom_long_pause_delay or settings.long_pause_delay
+    else:
+        cfg = get_preset(state.pace_preset)
+        slow_read = cfg.slow_read_enabled
+        fast_batch_size = cfg.fast_batch_size
+        fast_batch_delay = cfg.fast_batch_delay
+        batch_size = cfg.batch_size
+        long_pause_delay = cfg.long_pause_delay
+
     try:
         msgs = await fetch_messages(
             client,
             entity=state.chat_id,
             since=since,
             max_messages=settings.max_messages_per_run,
+            # Slow-read pacing from the active preset (or custom / .env fallback).
+            slow_read=slow_read,
+            fast_batch_size=fast_batch_size,
+            fast_batch_delay=fast_batch_delay,
+            batch_size=batch_size,
+            long_pause_delay=long_pause_delay,
         )
     except Exception as exc:
         log.exception("fetch_messages failed")
@@ -392,7 +544,7 @@ async def _run_pipeline(
         return
 
     try:
-        ids = await analyzer.analyze(msgs, state.prompt)
+        matches = await analyzer.analyze(msgs, state.prompt)
     except Exception as exc:
         log.exception("AI analyze failed")
         await q.edit_message_text(
@@ -401,26 +553,44 @@ async def _run_pipeline(
         )
         return
 
-    if not ids:
+    if not matches:
         await q.edit_message_text(t("run.done_zero", lang), reply_markup=main_menu_kb(lang))
         return
 
+    # Build (FetchedMessage, reason) tuples in the original message order.
+    ordered: list[tuple[FetchedMessage, str]] = [
+        (m, matches.get(m.id, "")) for m in msgs if m.id in matches
+    ]
+
+    # ---- Delivery: digest (default, safe) or forward ----
     try:
-        sent = await do_forward(
-            client,
-            destination=destination,
-            source_entity=state.chat_id,
-            message_ids=ids,
-        )
+        if state.delivery_mode == "digest":
+            from src.userbot.summarizer import build_digest, send_digest
+
+            entity = await client.get_entity(state.chat_id)
+            text = build_digest(entity, ordered, prompt=state.prompt)
+            await send_digest(client, destination=destination, text=text)
+            await q.edit_message_text(
+                t("run.done_n_digest", lang, n=len(ordered)),
+                reply_markup=main_menu_kb(lang),
+            )
+        else:
+            from src.userbot.forwarder import forward_messages as do_forward
+
+            sent = await do_forward(
+                client,
+                destination=destination,
+                source_entity=state.chat_id,
+                message_ids=[m.id for m, _ in ordered],
+            )
+            await q.edit_message_text(
+                t("run.done_n_forward", lang, n=len(sent)),
+                reply_markup=main_menu_kb(lang),
+            )
     except Exception as exc:
-        log.exception("forward failed")
+        log.exception("delivery failed")
         await q.edit_message_text(
             t("run.error", lang, err=str(exc)),
             reply_markup=main_menu_kb(lang),
         )
         return
-
-    await q.edit_message_text(
-        t("run.done_n", lang, n=len(sent)),
-        reply_markup=main_menu_kb(lang),
-    )

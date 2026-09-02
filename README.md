@@ -17,7 +17,9 @@
 | پنجره زمانی قابل تنظیم در همان جلسه | Per-session adjustable time window |
 | ذخیره **۱۰ پرامپت آخر** در Saved Messages | Stores the **last 10 prompts** in Saved Messages (cross-device) |
 | رابط **دو زبانه فارسی/انگلیسی** (`/lang fa\|en`) | **Bilingual** UI: Persian / English (`/lang fa\|en`) |
-| فوروارد با حفظ نویسنده و زمان اصلی پیام | Forwards preserve original author/timestamp |
+| **حالت امن: ارسال خلاصه با لینک** (پیش‌فرض) | **Safe mode: digest with links** (default) |
+| **حالت فوروارد** (اگه خواستید) | **Forward mode** (optional) |
+| **خواندن آرام** برای جلوگیری از FloodWait | **Slow read** to avoid FloodWait |
 | اجرا روی PC شخصی (بدون Docker) یا Docker | Runs on your PC (no Docker needed) or on Docker |
 
 ---
@@ -157,8 +159,13 @@ Please enter your password (if 2FA enabled): ******
 4. روی "📝 پرامپت جدید" بزنید → توضیح دهید دنبال چه نوع پیام‌هایی هستید
    (مثلاً: "پیام‌هایی که شامل آگهی استخدام برنامه‌نویس هستند")
 5. (اختیاری) روی "📨 مقصد فوروارد" → یا از پیش‌فرض `.env` استفاده کنید
-6. روی "▶️ اجرا" بزنید → AI پیام‌ها را بررسی می‌کند و منطبق‌ها را فوروارد می‌کند
+6. (اختیاری) روی "📤 حالت ارسال" → انتخاب کنید:
+   • 📋 ارسال خلاصه با لینک (پیش‌فرض، امن) — یک پیام شامل لینک + متن کوتاه
+   • ↪️ فوروارد پیام‌ها — مستقیم فوروارد می‌کنه
+7. روی "▶️ اجرا" بزنید
 ```
+
+> 💡 **حالت پیش‌فرض «خلاصه با لینک» است.** این حالت امن‌تره چون فقط یک پیام (digest) به مقصد می‌فرسته و پیام‌های اصلی را touch نمی‌کنه. در حالت digest، شما لینک مستقیم به پیام اصلی دریافت می‌کنید و خودتان تصمیم می‌گیرید چه کار کنید.
 
 ---
 
@@ -293,7 +300,8 @@ Organizer_chat_bot/
 
 ## 🔒 امنیت / Security Model
 
-| لایه / Layer | توضیح / Description |
+| لاTwo delivery modes** | پیش‌فرض: **digest (امن)** — یک پیام خلاصه با لینک ارسال می‌شود. اختیاری: **forward** — پیام‌های اصلی مستقیماً فوروارد می‌شوند. هیچ‌کدام پیامی به افراد دیگر نمی‌فرستد. |
+| **Slow-read pacing** | حالت پیش‌فرض، خواندن پیام‌ها را با ۱.۵ ثانیه مکث بین هر batch انجام می‌دهد تا الگوی رفتاری شبیه کاربر انسانی باشد
 |---|---|
 | **Hard read-only wrapper** | `ReadOnlyClient` در `src/userbot/wrapper.py` فقط متدهای allowlist‌شده را expose می‌کند. حتی در سطح کد، فراخوانی `client.send_message` به دلیل `__getattr__` غیرفعال‌کننده، **runtime AttributeError** می‌دهد. |
 | **Single-user authorization** | تمام handlerها با decorator `authorized` محافظت می‌شوند. هر `Update` از User ID متفرقه silent ignore می‌شود. |

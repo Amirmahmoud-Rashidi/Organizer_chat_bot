@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     max_messages_per_run: int = Field(default=1000, ge=1, le=10000)
     prompt_history_limit: int = Field(default=10, ge=1, le=50)
 
+    # --- Read pacing (anti-FloodWait / anti-ban) ---
+    # Slow-read mode makes the bot's request pattern look like a human.
+    # Defaults: 10 msgs/sec, with a 5s pause every 50 messages.
+    slow_read_enabled: bool = Field(default=True)
+    fast_batch_size: int = Field(default=10, ge=1, le=100)
+    fast_batch_delay: float = Field(default=1.0, ge=0.0, le=60.0)
+    batch_size: int = Field(default=50, ge=1, le=500)
+    long_pause_delay: float = Field(default=5.0, ge=0.0, le=120.0)
+
     # -------------------------------------------------------------------------
     # Validators
     # -------------------------------------------------------------------------

@@ -16,12 +16,19 @@ class Analyzer(abc.ABC):
     @abc.abstractmethod
     async def analyze(
         self, messages: list[FetchedMessage], prompt: str
-    ) -> list[int]:
+    ) -> dict[int, str]:
         """
-        Return a list of message ids (from `messages`) that match the prompt.
+        Return a mapping of message_id → short reason for messages that match.
+
+        The return type is intentionally a dict (not a list of ints) so the
+        digest can show "why" each message matched — much more useful than a
+        bare id list. Empty ids that don't exist in `messages` are filtered.
 
         MUST return ONLY ids that exist in the input `messages` (defensive).
-        MUST return a list (possibly empty). MUST NOT raise on no-match.
+        MUST return a dict (possibly empty). MUST NOT raise on no-match.
         MAY raise on network/HTTP errors.
+
+        Reasons should be very short (< 80 chars); they're shown alongside
+        the message excerpt in the digest.
         """
         raise NotImplementedError
