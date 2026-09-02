@@ -229,6 +229,120 @@ def test_digest_builder() -> None:
     print("  ok: digest contains sender + link + truncated excerpt + reason")
 
 
+def test_proxy_config() -> None:
+    """Validate the proxy feature is OFF by default and only activates when set."""
+    print("\n=== Proxy config (feature-flagged) ===")
+    import importlib
+    from src import config as cfg_mod
+
+    # Case 1: proxy disabled (default)
+    setup_env("openrouter")
+    for k in ("TELEGRAM_PROXY_ENABLED",):
+        os.environ[k] = "false"
+    for k in ("TELEGRAM_PROXY_HOST", "TELEGRAM_PROXY_PORT"):
+        os.environ.pop(k, None)
+    importlib.reload(cfg_mod)
+    s = cfg_mod.get_settings()
+    assert s.telegram_proxy_enabled is False
+    assert _build_proxy() is None
+    print("  ok: default config -> proxy disabled, _build_proxy() returns None")
+
+    # Case 2: proxy enabled with SOCKS5
+    os.environ["TELEGRAM_PROXY_ENABLED"] = "true"
+    os.environ["TELEGRAM_PROXY_TYPE"] = "socks5"
+    os.environ["TELEGRAM_PROXY_HOST"] = "127.0.0.1"
+    os.environ["TELEGRAM_PROXY_PORT"] = "1080"
+    os.environ["TELEGRAM_PROXY_USERNAME"] = "alice"
+    os.environ["TELEGRAM_PROXY_PASSWORD"] = "secret"
+    importlib.reload(cfg_mod)
+    s = cfg_mod.get_settings()
+    assert s.telegram_proxy_enabled is True
+    proxy = _build_proxy()
+    assert proxy is not None
+    assert proxy[0] == "socks5"
+    assert proxy[1] == "127.0.0.1"
+    assert proxy[2] == 1080
+    assert proxy[3] is True  # rdns
+    assert proxy[4] == "alice"  # username
+    assert proxy[5] == "secret"  # password
+    print("  ok: SOCKS5 proxy -> ('socks5', '127.0.0.1', 1080, True, 'alice', 'secret')")
+
+    # Case 3: proxy enabled with HTTP (no auth)
+    os.environ["TELEGRAM_PROXY_TYPE"] = "http"
+    os.environ["TELEGRAM_PROXY_USERNAME"] = ""
+    os.environ["TELEGRAM_PROXY_PASSWORD"] = ""
+    importlib.reload(cfg_mod)
+    s = cfg_mod.get_settings()
+    proxy = _build_proxy()
+    assert proxy == ("http", "127.0.0.1", 1080)
+    print("  ok: HTTP proxy -> ('http', '127.0.0.1', 1080)")
+
+    # Case 4: enabled but missing port -> pydantic type-coercion error
+    # (pydantic rejects empty string for int, which is fine for our purposes)
+    os.environ["TELEGRAM_PROXY_PORT"] = ""
+    importlib.reload(cfg_mod)
+    raised = False
+    try:
+        cfg_mod.get_settings()
+    except Exception:
+        raised = True
+    assert raised, "missing port should have raised"
+    print("  ok: missing port -> pydantic rejected (validation working)")
+
+
+def _build_proxy():
+    """Test-local wrapper around the production helper."""
+    from src.userbot.client import _build_proxy as real
+    return real()
+
+
+def test_https_proxy_autodetect() -> None:
+    """setup_https_proxy() detects a listening HTTP proxy on localhost."""
+    print("\n=== setup_https_proxy() auto-detect ===")
+    import socket
+    import threading
+    from src import main as main_mod
+
+    # Start a tiny HTTP server on a free port in a background thread.
+    probe_port = 18765
+    import http.server
+    import socketserver
+
+    class _QuietHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *_):  # silence
+            pass
+
+        def do_CONNECT(self):  # not used, but harmless
+            self.send_response(200)
+            self.end_headers()
+
+        def do_GET(self):  # needed because probes use HTTP CONNECT, but harmless if not
+            self.send_response(200)
+            self.end_headers()
+
+    httpd = socketserver.TCPServer(("127.0.0.1", probe_port), _QuietHandler)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        # Make sure we start with a clean env
+        for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            os.environ.pop(k, None)
+        # Also reset the module-level port-probe list to include our port
+        main_mod._PROXY_PROBES.append(("127.0.0.1", probe_port, "test probe"))
+        main_mod.setup_https_proxy()
+        assert os.environ.get("HTTPS_PROXY") == f"http://127.0.0.1:{probe_port}", \
+            f"expected proxy to be set, got {os.environ.get('HTTPS_PROXY')}"
+        print(f"  ok: detected listener on 127.0.0.1:{probe_port} -> set HTTPS_PROXY")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        # Clean up env so other tests aren't affected
+        for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            os.environ.pop(k, None)
+        # Restore the probe list
+        main_mod._PROXY_PROBES.pop()
+
+
 def test_presets() -> None:
     print("\n=== Read-pace presets ===")
     from src.bot.presets import (
@@ -538,6 +652,8 @@ def main() -> None:
     test_ai_parser()
     test_message_links()
     test_digest_builder()
+    test_proxy_config()
+    test_https_proxy_autodetect()
     test_presets()
     test_presets_integration_with_fetch()
     test_slow_read()

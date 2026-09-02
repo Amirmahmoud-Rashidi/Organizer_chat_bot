@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
+import socket
 import sys
 
 from src import __version__
@@ -34,17 +36,73 @@ from src.utils.logging import setup_logging
 log = logging.getLogger(__name__)
 
 
+# Ports we probe to detect a local HTTP proxy like Chrome-Tunnel.
+# These are checked ONCE at startup; if any responds, we route HTTPS
+# traffic through it. If none responds, we use the system's default
+# networking (or whatever HTTPS_PROXY is already set in the environment).
+_PROXY_PROBES: list[tuple[str, int, str]] = [
+    ("127.0.0.1", 8765, "Chrome-Tunnel (default)"),
+    ("127.0.0.1", 8080, "Common HTTP proxy"),
+    ("127.0.0.1", 8888, "Common HTTP proxy"),
+]
+
+
+def setup_https_proxy() -> None:
+    """
+    Auto-detect a local HTTP proxy (Chrome-Tunnel or similar) and route
+    HTTPS traffic through it.
+
+    This affects:
+      * python-telegram-bot (BotFather)
+      * openai SDK (OpenRouter)
+      * google-genai SDK (Google AI Studio)
+
+    It does NOT affect Telethon — Telethon uses raw TCP+MTProto and must
+    be configured separately via TELEGRAM_PROXY_* in `.env`.
+
+    If HTTPS_PROXY is already set in the environment, we leave it alone.
+    """
+    # Respect explicit env first
+    if os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"):
+        log.info("HTTPS proxy already set in env: %s",
+                 os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"))
+        return
+
+    # Check whether any session has already set it (idempotent)
+    if os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"):
+        return
+
+    for host, port, label in _PROXY_PROBES:
+        try:
+            with socket.create_connection((host, port), timeout=0.3):
+                proxy_url = f"http://{host}:{port}"
+                os.environ["HTTP_PROXY"] = proxy_url
+                os.environ["HTTPS_PROXY"] = proxy_url
+                log.info("Detected local proxy: %s @ %s — routing HTTPS through it",
+                         label, proxy_url)
+                return
+        except (socket.timeout, ConnectionRefusedError, OSError):
+            continue
+
+    log.info("No local HTTP proxy detected — HTTPS traffic will use system default")
+
+
 async def run() -> None:
     settings = get_settings()
     setup_logging()
     log.info("Organizer Chat Bot v%s starting up", __version__)
     log.info(
-        "Config: ai=%s/%s | allowed_user_id=%d | lang_default=%s",
+        "Config: ai=%s/%s | allowed_user_id=%d | lang_default=%s | proxy=%s",
         settings.ai_provider,
         settings.ai_model,
         settings.allowed_user_id,
         settings.default_language,
+        "ON" if settings.telegram_proxy_enabled else "off",
     )
+
+    # Auto-detect Chrome-Tunnel for HTTPS SDKs (BotFather, AI).
+    # Only takes effect if the user has Chrome-Tunnel (or similar) running.
+    setup_https_proxy()
 
     # --- Build Telethon userbot (raw → wrapped) ---
     raw = create_raw_client()

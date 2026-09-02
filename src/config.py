@@ -65,6 +65,22 @@ class Settings(BaseSettings):
     batch_size: int = Field(default=50, ge=1, le=500)
     long_pause_delay: float = Field(default=5.0, ge=0.0, le=120.0)
 
+    # --- Telethon userbot proxy (for restricted networks) ---
+    # If enabled, the Telethon client connects to Telegram through this proxy.
+    # Use SOCKS5 (recommended) or HTTP. The HTTPS SDKs (BotFather, OpenRouter,
+    # Google AI) honor the standard HTTPS_PROXY / HTTP_PROXY env vars instead,
+    # and main.py auto-detects Chrome-Tunnel at 127.0.0.1:8765.
+    #
+    # IMPORTANT: this is OFF by default. Only enable if you actually need it.
+    # All other users will not be affected.
+    telegram_proxy_enabled: bool = Field(default=False)
+    telegram_proxy_type: Literal["socks5", "http"] = Field(default="socks5")
+    telegram_proxy_host: str | None = Field(default=None)
+    telegram_proxy_port: int | None = Field(default=None)
+    telegram_proxy_username: str | None = Field(default=None)
+    telegram_proxy_password: str | None = Field(default=None)
+    telegram_proxy_rdns: bool = Field(default=True)
+
     # -------------------------------------------------------------------------
     # Validators
     # -------------------------------------------------------------------------
@@ -98,6 +114,19 @@ class Settings(BaseSettings):
                 "No AI provider configured. Set either OPENROUTER_API_KEY "
                 "or GOOGLE_AI_API_KEY in your `.env`."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_proxy(self) -> "Settings":
+        if not self.telegram_proxy_enabled:
+            return self
+        if not self.telegram_proxy_host or not self.telegram_proxy_port:
+            raise ValueError(
+                "TELEGRAM_PROXY_ENABLED=true requires "
+                "TELEGRAM_PROXY_HOST and TELEGRAM_PROXY_PORT."
+            )
+        if not (1 <= self.telegram_proxy_port <= 65535):
+            raise ValueError("TELEGRAM_PROXY_PORT must be 1..65535")
         return self
 
     # -------------------------------------------------------------------------

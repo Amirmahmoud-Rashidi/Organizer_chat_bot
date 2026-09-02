@@ -27,6 +27,42 @@ log = logging.getLogger(__name__)
 _SESSION_DIR = os.environ.get("TELEGRAM_SESSION_DIR", "./data")
 
 
+def _build_proxy() -> tuple | None:
+    """
+    Build a Telethon-compatible proxy tuple from settings, or None.
+
+    Telethon expects:
+      * SOCKS5: (socks5, host, port, rdns=True, username=None, password=None)
+      * HTTP:   ("http", host, port)
+
+    Returns None when proxy is disabled or unconfigured.
+    """
+    s = get_settings()
+    if not s.telegram_proxy_enabled:
+        return None
+    if not s.telegram_proxy_host or not s.telegram_proxy_port:
+        return None
+    if s.telegram_proxy_type == "socks5":
+        log.info(
+            "Telethon proxy: SOCKS5 %s:%d (rdns=%s)",
+            s.telegram_proxy_host, s.telegram_proxy_port, s.telegram_proxy_rdns,
+        )
+        return (
+            "socks5",
+            s.telegram_proxy_host,
+            s.telegram_proxy_port,
+            s.telegram_proxy_rdns,
+            s.telegram_proxy_username or None,
+            s.telegram_proxy_password or None,
+        )
+    # http
+    log.info(
+        "Telethon proxy: HTTP %s:%d",
+        s.telegram_proxy_host, s.telegram_proxy_port,
+    )
+    return ("http", s.telegram_proxy_host, s.telegram_proxy_port)
+
+
 def create_raw_client() -> TelegramClient:
     """
     Construct (but do NOT start) a Telethon client.
@@ -42,6 +78,7 @@ def create_raw_client() -> TelegramClient:
         session=session_path,
         api_id=s.telegram_api_id,
         api_hash=s.telegram_api_hash,
+        proxy=_build_proxy(),
         # device params — purely cosmetic, helps avoid automated-detection flags
         device_model="OrganizerBot",
         system_version="1.0",
