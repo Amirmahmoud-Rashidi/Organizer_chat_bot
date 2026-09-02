@@ -1,0 +1,29 @@
+# =============================================================================
+# Organizer Chat Bot — docker-compose
+#
+# Usage:
+#   1) Copy `.env.example` to `.env` and fill in real values.
+#   2) `docker compose up -d`
+#   3) First run will prompt for Telegram SMS code (interactive).
+#      After that, the session file in ./data persists across restarts.
+#
+# IMPORTANT: the ./data volume MUST be persistent. If you lose it, you'll
+# have to log in again with a fresh SMS code.
+# =============================================================================
+services:
+  organizer-bot:
+    build: .
+    container_name: organizer-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Persistent Telethon session + any local artifacts.
+      # ./data is the default session dir (see src/userbot/client.py),
+      # and CWD inside the container is /app, so the layout stays consistent.
+      - ./data:/app/data
+    # Keep stdin open so the first-run interactive login works.
+    stdin_open: true
+    tty: true
+    # The bot talks OUT to Telegram — no inbound ports needed.
+    network_mode: bridge

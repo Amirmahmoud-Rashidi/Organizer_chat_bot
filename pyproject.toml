@@ -1,0 +1,28 @@
+[project]
+name = "organizer-chat-bot"
+version = "0.1.0"
+description = "Telegram userbot that filters chats with a custom prompt using AI and forwards matches to a destination chat."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "Amirmahmoud Rashidi" }]
+
+dependencies = [
+    "telethon==1.36.0",
+    "python-telegram-bot==21.6",
+    "openai==1.54.4",
+    "google-genai==1.7.0",
+    "python-dotenv==1.0.1",
+    "pydantic==2.9.2",
+    "pydantic-settings==2.6.1",
+]
+
+[project.scripts]
+organizer-bot = "src.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

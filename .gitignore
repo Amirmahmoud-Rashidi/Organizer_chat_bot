@@ -1,0 +1,46 @@
+# --- Secrets & local config ---
+.env
+.env.*
+!.env.example
+
+# --- Telethon session files (CRITICAL: do not commit, grants account access) ---
+*.session
+*.session-journal
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- IDE / Editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# --- Logs & runtime ---
+logs/
+*.log
+*.pid
+data/
+# local session artifacts (Telethon .session + any caches)
+
+# --- Testing / coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
