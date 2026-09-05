@@ -39,6 +39,11 @@ from src.userbot.wrapper import ReadOnlyClient
 
 log = logging.getLogger(__name__)
 
+# Telegram's hard limit for a single text message is 4096 chars. We leave a
+# safety margin (entities, markdown, etc. can add a bit of overhead).
+_TELEGRAM_MESSAGE_LIMIT = 4096
+_SAFE_CHUNK_SIZE = 3900
+
 
 def make_message_link(entity: Any, message_id: int) -> str | None:
     """
@@ -123,6 +128,45 @@ def build_digest(
     return "\n".join(parts).strip()
 
 
+def _split_digest(text: str, *, max_len: int = _SAFE_CHUNK_SIZE) -> list[str]:
+    """
+    Split `text` into chunks that fit under Telegram's message size limit.
+
+    We split on blank-line boundaries (each digest entry is separated by an
+    empty line — see `build_digest`) so we never cut a message entry in half.
+    If a single "paragraph" is somehow still too long (pathological case),
+    it gets hard-split as a last resort.
+    """
+    if len(text) <= max_len:
+        return [text]
+
+    paragraphs = text.split("\n\n")
+    chunks: list[str] = []
+    current = ""
+
+    for para in paragraphs:
+        candidate = f"{current}\n\n{para}" if current else para
+        if len(candidate) <= max_len:
+            current = candidate
+            continue
+
+        if current:
+            chunks.append(current)
+            current = ""
+
+        if len(para) <= max_len:
+            current = para
+        else:
+            # Last resort: a single paragraph is bigger than the limit.
+            for i in range(0, len(para), max_len):
+                chunks.append(para[i : i + max_len])
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
 async def send_digest(
     client: ReadOnlyClient,
     *,
@@ -130,11 +174,20 @@ async def send_digest(
     text: str,
 ) -> None:
     """
-    Send the digest text to the destination chat. Single send.
+    Send the digest text to the destination chat.
 
-    Uses the read-only client's narrowly-scoped send method (see wrapper.py).
+    Splits into multiple messages if `text` exceeds Telegram's ~4096-char
+    limit per message, so large digests never fail to send.
     """
     if not text:
         return
-    log.info("send_digest: sending %d-char digest to %s", len(text), destination)
-    await client.send_to_destination(destination, text)
+
+    chunks = _split_digest(text)
+    total = len(chunks)
+    log.info(
+        "send_digest: sending %d-char digest to %s in %d part(s)",
+        len(text), destination, total,
+    )
+    for i, chunk in enumerate(chunks, 1):
+        body = chunk if total == 1 else f"({i}/{total})\n\n{chunk}"
+        await client.send_to_destination(destination, body)
