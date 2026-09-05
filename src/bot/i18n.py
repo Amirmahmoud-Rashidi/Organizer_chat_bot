@@ -191,16 +191,19 @@ MESSAGES_EN: dict[str, str] = {
 _TABLE: dict[Lang, dict[str, str]] = {"fa": MESSAGES_FA, "en": MESSAGES_EN}
 
 
-def t(key: str, lang: Lang = "fa", **kwargs: object) -> str:
+def t(key: str, lang: Lang = "fa", *args: object, **kwargs: object) -> str:
     """
     Translate `key` to `lang`. Falls back to Persian, then to `key`.
 
-    `kwargs` are substituted via `.format(**kwargs)` (only `{name}` style).
+    Supports both styles used across the codebase:
+      * `{name}` placeholders -> pass as `**kwargs`
+      * `{0} {1} ...` placeholders -> pass as positional `*args`
+        (e.g. `t("pace.custom_saved", lang, fast_size, fast_delay, ...)`)
     """
     table = _TABLE.get(lang, MESSAGES_FA)
     template = table.get(key) or MESSAGES_FA.get(key) or key
     try:
-        return template.format(**kwargs)
+        return template.format(*args, **kwargs)
     except (KeyError, IndexError):
         return template
 
